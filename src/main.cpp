@@ -4,6 +4,10 @@
 #include <driver/pcnt.h>
 #include <ModbusIP_ESP8266.h>
 #include "config.h"
+#include <esp_task_wdt.h>
+
+//10 seconds WDT
+#define WDT_TIMEOUT 10
 
 const float impPerkWh = IMPULSES_PER_KWH; // Beispielwert: 1000 Impulse pro kWh
 const int period_s = 5;
@@ -73,17 +77,26 @@ void setup() {
   mb.addHreg(power_mb_register, 2);
 
   digitalWrite(LED_BUILTIN, LOW);
+
+  esp_task_wdt_init(WDT_TIMEOUT, true); //enable panic so ESP32 restarts
+  esp_task_wdt_add(NULL); //add current thread to WDT watch
 }
 
 void loop() {
   if (WiFi.status() != WL_CONNECTED) {
+    digitalWrite(LED_BUILTIN, HIGH);
     reconnectWiFi();
+    digitalWrite(LED_BUILTIN, LOW);
   }
   if (!client.connected()) {
+    digitalWrite(LED_BUILTIN, HIGH);
     reconnectMQTT();
+    digitalWrite(LED_BUILTIN, LOW);
   }
   client.loop();
   mb.task();
+
+  esp_task_wdt_reset();
 
   static long lastMsg = 0;
   long now = millis();
